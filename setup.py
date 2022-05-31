@@ -16,8 +16,8 @@ setup(
     long_description='{}\n\n{}'.format(readme, history),
     long_description_content_type='text/markdown',
     author='Venmo',
-    author_email='open-source@venmo.com',
-    url='https://github.com/venmo/business-rules',
+    author_email='thangarajan_panneerselvam@condenast.com',
+    url='https://github.com/CondeNast/business-rules',
     packages=['business_rules'],
     license='MIT',
     classifiers=[

@@ -1,19 +1,24 @@
+""" All operations which support to execute rules variables with conditions"""
 import inspect
 import re
+from decimal import Decimal
 from functools import wraps
 from six import string_types, integer_types
 
 from .fields import (FIELD_TEXT, FIELD_NUMERIC, FIELD_NO_INPUT,
                      FIELD_SELECT, FIELD_SELECT_MULTIPLE)
 from .utils import fn_name_to_pretty_label, float_to_decimal
-from decimal import Decimal, Inexact, Context
+# pylint: disable=missing-module-docstring
+# pylint: disable=missing-class-docstring
+# pylint: disable=missing-function-docstring
 
-class BaseType(object):
+
+class BaseType:
     def __init__(self, value):
         self.value = self._assert_valid_value_and_cast(value)
 
     def _assert_valid_value_and_cast(self, value):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     @classmethod
     def get_all_operators(cls):
@@ -99,7 +104,7 @@ class StringType(BaseType):
 @export_type
 class NumericType(BaseType):
     EPSILON = Decimal('0.000001')
-
+    ZERO = 0
     name = "numeric"
 
     @staticmethod
@@ -135,6 +140,16 @@ class NumericType(BaseType):
     def less_than_or_equal_to(self, other_numeric):
         return self.less_than(other_numeric) or self.equal_to(other_numeric)
 
+    @type_operator(FIELD_NUMERIC)
+    def is_even(self, other_numeric):
+        res = other_numeric % 2
+        return res == self.ZERO
+
+    @type_operator(FIELD_NUMERIC)
+    def is_odd(self, other_numeric):
+        res = other_numeric % 2
+        return res != self.ZERO
+
 
 @export_type
 class BooleanType(BaseType):
@@ -142,7 +157,7 @@ class BooleanType(BaseType):
     name = "boolean"
 
     def _assert_valid_value_and_cast(self, value):
-        if type(value) != bool:
+        if not isinstance(value,bool):
             raise AssertionError("{0} is not a valid boolean type".
                                  format(value))
         return value
@@ -154,6 +169,7 @@ class BooleanType(BaseType):
     @type_operator(FIELD_NO_INPUT)
     def is_false(self):
         return not self.value
+
 
 @export_type
 class SelectType(BaseType):
@@ -168,9 +184,8 @@ class SelectType(BaseType):
 
     @staticmethod
     def _case_insensitive_equal_to(value_from_list, other_value):
-        if isinstance(value_from_list, string_types) and \
-                isinstance(other_value, string_types):
-                    return value_from_list.lower() == other_value.lower()
+        if isinstance(value_from_list, string_types) and isinstance(other_value, string_types):
+            return value_from_list.lower() == other_value.lower()
         else:
             return value_from_list == other_value
 
@@ -191,7 +206,7 @@ class SelectType(BaseType):
 
 @export_type
 class SelectMultipleType(BaseType):
-
+    """Class"""
     name = "select_multiple"
 
     def _assert_valid_value_and_cast(self, value):

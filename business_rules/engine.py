@@ -1,10 +1,14 @@
+"""engine"""
 from .fields import FIELD_NO_INPUT
+
 
 def run_all(rule_list,
             defined_variables,
             defined_actions,
             stop_on_first_trigger=False):
-
+    """
+    Used to run all rules but won't return action data
+    """
     rule_was_triggered = False
     for rule in rule_list:
         result = run(rule, defined_variables, defined_actions)
@@ -14,7 +18,44 @@ def run_all(rule_list,
                 return True
     return rule_was_triggered
 
+
+def run_all_with_results(rule_list,
+                         defined_variables,
+                         defined_actions,
+                         stop_on_first_trigger=False):
+    """Run all Rules and return the rules actions results
+    Returns:
+        rule_results(list): list of dictionaries. Each dictionary is a rule
+        actions' results
+    """
+    rule_results = []
+    for rule in rule_list:
+        actions_results = run_and_get_results(rule, defined_variables, defined_actions)
+        if actions_results:
+            rule_results.append(actions_results)
+            if stop_on_first_trigger:
+                return rule_results
+    return rule_results
+
+
+def run_and_get_results(rule, defined_variables, defined_actions):
+    """ Run the rule and get the action returned result
+    Attributes:
+        rule(dict): the rule dictionary
+        defined_variables(BaseVariables): the defined set of variables object
+        defined_actions(BaseActions): the actions object
+    """
+    actions_results = {}
+    conditions, actions = rule.get('conditions'), rule.get('actions')
+    if conditions and actions:
+        rule_triggered = check_conditions_recursively(conditions, defined_variables)
+        if rule_triggered:
+            actions_results = do_actions(actions, defined_actions)
+    return actions_results
+
+
 def run(rule, defined_variables, defined_actions):
+    """Run the rule """
     conditions, actions = rule['conditions'], rule['actions']
     rule_triggered = check_conditions_recursively(conditions, defined_variables)
     if rule_triggered:
@@ -24,6 +65,7 @@ def run(rule, defined_variables, defined_actions):
 
 
 def check_conditions_recursively(conditions, defined_variables):
+    """Rule validator"""
     keys = list(conditions.keys())
     if keys == ['all']:
         assert len(conditions['all']) >= 1
@@ -45,14 +87,16 @@ def check_conditions_recursively(conditions, defined_variables):
         assert not ('any' in keys or 'all' in keys)
         return check_condition(conditions, defined_variables)
 
+
 def check_condition(condition, defined_variables):
     """ Checks a single rule condition - the condition will be made up of
     variables, values, and the comparison operator. The defined_variables
     object must have a variable defined for any variables in this condition.
     """
-    name, op, value = condition['name'], condition['operator'], condition['value']
+    name, output, value = condition['name'], condition['operator'], condition['value']
     operator_type = _get_variable_value(defined_variables, name)
-    return _do_operator_comparison(operator_type, op, value)
+    return _do_operator_comparison(operator_type, output, value)
+
 
 def _get_variable_value(defined_variables, name):
     """ Call the function provided on the defined_variables object with the
@@ -68,12 +112,13 @@ def _get_variable_value(defined_variables, name):
     val = method()
     return method.field_type(val)
 
+
 def _do_operator_comparison(operator_type, operator_name, comparison_value):
     """ Finds the method on the given operator_type and compares it to the
     given comparison_value.
 
     operator_type should be an instance of operators.BaseType
-    comparison_value is whatever python type to compare to
+    comparison_value is whatever python type to compare
     returns a bool
     """
     def fallback(*args, **kwargs):
@@ -86,11 +131,29 @@ def _do_operator_comparison(operator_type, operator_name, comparison_value):
 
 
 def do_actions(actions, defined_actions):
+    """ Run the actions
+    Attributes:
+        actions(list): list of dictionaries of actions. e.g: [
+            { "name": "put_on_sale",
+            "params": {"sale_percentage": 0.25},
+            }
+        ]
+    Returns:
+        actionsResults(dict): Dictionary of actions results
+            e.g: {"put_on_sale": [product1, product2, ...]}
+    """
+    actions_results = {}
     for action in actions:
         method_name = action['name']
+
         def fallback(*args, **kwargs):
-            raise AssertionError("Action {0} is not defined in class {1}"\
-                    .format(method_name, defined_actions.__class__.__name__))
+            raise AssertionError(
+                "Action {0} is not defined in class {1}".format(method_name,
+                                                                defined_actions.__class__.__name__))
+
         params = action.get('params') or {}
         method = getattr(defined_actions, method_name, fallback)
-        method(**params)
+        print(method_name)
+        actions_results[method_name] = method(**params)
+
+    return actions_results
